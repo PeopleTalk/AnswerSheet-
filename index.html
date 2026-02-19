@@ -90,6 +90,12 @@
                 </div>
 
                 <div class="flex items-center gap-3">
+                    <!-- Stopwatch -->
+                    <div class="flex items-center gap-2 px-3 py-2 bg-slate-100 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-mono font-bold text-sm shadow-sm">
+                        <i data-lucide="timer" class="w-4 h-4 text-slate-500 dark:text-slate-400"></i>
+                        <span id="timer-display">00:00</span>
+                    </div>
+
                     <!-- Stats -->
                     <div class="flex items-center gap-4 bg-slate-100/50 dark:bg-slate-800/50 p-2 rounded-xl border border-slate-200 dark:border-slate-700">
                         <div class="px-2 flex flex-col items-center">
@@ -180,7 +186,9 @@
             data: [], // Array of objects { id, text, status }
             gradingMode: false,
             activeIndex: 0,
-            darkMode: false
+            darkMode: false,
+            timerInterval: null,
+            startTime: null
         };
 
         // --- DOM Elements ---
@@ -209,7 +217,8 @@
             okConfirm: document.getElementById('ok-confirm'),
             copyBtn: document.getElementById('copy-btn'),
             setupThemeToggle: document.getElementById('setup-theme-toggle'),
-            appThemeToggle: document.getElementById('app-theme-toggle')
+            appThemeToggle: document.getElementById('app-theme-toggle'),
+            timerDisplay: document.getElementById('timer-display')
         };
 
         // --- Initialization ---
@@ -270,6 +279,7 @@
                 status: 'neutral'
             }));
 
+            startTimer();
             renderApp();
         }
 
@@ -448,6 +458,38 @@
             }
         }
 
+        // --- Timer Logic ---
+        function startTimer() {
+            if (state.timerInterval) clearInterval(state.timerInterval);
+            state.startTime = Date.now();
+            updateTimerDisplay(); // immediate
+            state.timerInterval = setInterval(updateTimerDisplay, 1000);
+        }
+
+        function stopTimer() {
+            if (state.timerInterval) {
+                clearInterval(state.timerInterval);
+                state.timerInterval = null;
+            }
+        }
+
+        function updateTimerDisplay() {
+            if (!state.startTime) return;
+            const diff = Math.floor((Date.now() - state.startTime) / 1000);
+            
+            const hours = Math.floor(diff / 3600);
+            const minutes = Math.floor((diff % 3600) / 60);
+            const seconds = diff % 60;
+
+            let text = "";
+            if (hours > 0) {
+                text += `${hours.toString().padStart(2, '0')}:`;
+            }
+            text += `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            
+            els.timerDisplay.textContent = text;
+        }
+
         // --- Features ---
 
         function toggleGradingMode() {
@@ -501,6 +543,7 @@
         }
 
         function confirmNewSheet() {
+            stopTimer(); // Stop the timer
             els.confirmModal.classList.add('hidden');
             state.isSetup = true;
             state.data = [];
@@ -516,7 +559,7 @@
             // keep ranges as is
             
             // Reset UI bits
-            toggleGradingMode(); // reset logic if needed, actually just forcing false above covers logic, but UI needs reset
+            toggleGradingMode(); 
             if(state.gradingMode) toggleGradingMode(); // ensure off
         }
 
