@@ -1,341 +1,553 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { 
-  Trash2, Copy, CheckCircle, XCircle, 
-  ArrowDown, ArrowUp, Zap, Settings, 
-  ChevronRight, Calculator, Check, X,
-  FilePlus, RefreshCw
-} from 'lucide-react';
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Speed Answer Sheet</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+        }
+    </script>
+    <style>
+        /* Custom Utilities */
+        .caret-transparent { caret-color: transparent; }
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        /* Hide number input spinners */
+        input::-webkit-outer-spin-button,
+        input::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        input[type=number] {
+            -moz-appearance: textfield;
+        }
 
-export default function App() {
-  // --- State ---
-  const [isSetup, setIsSetup] = useState(true);
-  const [sheetName, setSheetName] = useState('');
-  const [range, setRange] = useState({ start: 1, end: 100 });
-  const [data, setData] = useState([]); 
-  const [gradingMode, setGradingMode] = useState(false);
-  const [activeIndex, setActiveIndex] = useState(0);
-  
-  const inputRefs = useRef([]);
+        /* Animation */
+        @keyframes fade-in-up {
+            from { opacity: 0; transform: translate(-50%, 20px); }
+            to { opacity: 1; transform: translate(-50%, 0); }
+        }
+        .animate-fade-in-up {
+            animation: fade-in-up 0.3s ease-out forwards;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans transition-colors duration-200 min-h-screen flex flex-col">
 
-  // --- Setup Handlers ---
-  const handleStart = (e) => {
-    e.preventDefault();
-    const start = parseInt(range.start) || 1;
-    const end = parseInt(range.end) || 100;
-    
-    if (end < start) {
-      alert("End number must be greater than start number");
-      return;
-    }
-
-    const count = end - start + 1;
-    if (count > 500) {
-      if(!window.confirm(`This will generate ${count} inputs. Continue?`)) return;
-    }
-
-    const newData = Array.from({ length: count }, (_, i) => ({
-      id: start + i,
-      text: '',
-      status: 'neutral'
-    }));
-
-    setData(newData);
-    setIsSetup(false);
-    
-    // Reset refs & focus
-    inputRefs.current = inputRefs.current.slice(0, count);
-    setTimeout(() => {
-        if(inputRefs.current[0]) inputRefs.current[0].focus();
-    }, 100);
-  };
-
-  // --- Input Handlers ---
-  const handleInputChange = (index, value) => {
-    const newData = [...data];
-    newData[index].text = value;
-    setData(newData);
-  };
-
-  const handleKeyDown = (e, index) => {
-    if (e.key === 'Enter' || e.key === 'ArrowDown') {
-      e.preventDefault();
-      const nextIndex = index + 1;
-      if (nextIndex < data.length) {
-        inputRefs.current[nextIndex]?.focus();
-        setActiveIndex(nextIndex);
-        inputRefs.current[nextIndex]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      const prevIndex = index - 1;
-      if (prevIndex >= 0) {
-        inputRefs.current[prevIndex]?.focus();
-        setActiveIndex(prevIndex);
-        inputRefs.current[prevIndex]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
-    }
-  };
-
-  // --- Grading Handlers ---
-  const toggleStatus = (index, status) => {
-    const newData = [...data];
-    if (newData[index].status === status) {
-        newData[index].status = 'neutral';
-    } else {
-        newData[index].status = status;
-    }
-    setData(newData);
-  };
-
-  // --- Utility ---
-  const copyToClipboard = () => {
-    const header = sheetName ? `--- ${sheetName} ---\n` : '';
-    const body = data
-      .map(item => {
-        let mark = '';
-        if (item.status === 'correct') mark = ' [✓]';
-        if (item.status === 'wrong') mark = ' [✗]';
-        return item.text ? `${item.id}. ${item.text}${mark}` : null;
-      })
-      .filter(Boolean)
-      .join('\n');
-      
-    if (!body) return;
-    navigator.clipboard.writeText(header + body).then(() => alert('Copied to clipboard!'));
-  };
-
-  const startNewSheet = () => {
-    if (window.confirm("Finish this sheet and start a new one? Current answers will be cleared.")) {
-      setIsSetup(true);
-      setGradingMode(false);
-      setData([]);
-      setSheetName(''); // Clear name for new sheet
-      // Keep range as is for convenience
-    }
-  };
-
-  // --- Stats ---
-  const filledCount = data.filter(d => d.text.trim() !== '').length;
-  const correctCount = data.filter(d => d.status === 'correct').length;
-  const wrongCount = data.filter(d => d.status === 'wrong').length;
-  // const score = correctCount > 0 || wrongCount > 0 ? `${correctCount} / ${correctCount + wrongCount}` : '-';
-
-  // --- Render Setup Screen ---
-  if (isSetup) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4 font-sans text-slate-900">
-        <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md border border-slate-100">
-          <div className="flex items-center gap-3 mb-6 text-blue-600">
-            <Zap size={32} />
-            <h1 className="text-2xl font-bold text-slate-900">SpeedSheet</h1>
-          </div>
-          
-          <form onSubmit={handleStart} className="space-y-6">
-            <div>
-              <label className="block text-sm font-semibold text-slate-600 mb-2">Sheet Name (Optional)</label>
-              <input 
-                type="text" 
-                placeholder="e.g., Biology Chapter 3"
-                className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                value={sheetName}
-                onChange={(e) => setSheetName(e.target.value)}
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-semibold text-slate-600 mb-2">Start Q#</label>
-                <input 
-                  type="number" 
-                  required
-                  min="1"
-                  className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-lg font-mono"
-                  value={range.start}
-                  onChange={(e) => setRange({...range, start: e.target.value})}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-slate-600 mb-2">End Q#</label>
-                <input 
-                  type="number" 
-                  required
-                  min="1"
-                  className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-lg font-mono"
-                  value={range.end}
-                  onChange={(e) => setRange({...range, end: e.target.value})}
-                />
-              </div>
-            </div>
-
-            <button 
-              type="submit"
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-200"
-            >
-              Start Session <ChevronRight size={20} />
-            </button>
-          </form>
-        </div>
-      </div>
-    );
-  }
-
-  // --- Render Main App ---
-  return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans flex flex-col">
-      {/* Header */}
-      <header className="sticky top-0 z-20 bg-white/80 backdrop-blur-md border-b border-slate-200 px-4 py-3 shadow-sm">
-        <div className="max-w-5xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          
-          <div className="flex items-center gap-4">
-             <div className="flex flex-col">
-                <h2 className="font-bold text-slate-800 text-lg leading-tight">
-                  {sheetName || `Questions ${range.start} - ${range.end}`}
-                </h2>
-                <div className="flex items-center gap-2 text-xs text-slate-500">
-                   <span>{range.start}-{range.end}</span>
-                   <span>•</span>
-                   <span className={gradingMode ? "text-indigo-600 font-bold" : ""}>
-                     {gradingMode ? 'Grading Mode' : 'Editing Mode'}
-                   </span>
+    <!-- SETUP SCREEN -->
+    <div id="setup-screen" class="flex-1 flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-900 p-8 rounded-2xl shadow-xl w-full max-w-md border border-slate-100 dark:border-slate-800">
+            <div class="flex items-center justify-between mb-6">
+                <div class="flex items-center gap-3 text-blue-600 dark:text-blue-400">
+                    <i data-lucide="zap" class="w-8 h-8"></i>
+                    <h1 class="text-2xl font-bold text-slate-900 dark:text-white">SpeedSheet</h1>
                 </div>
-             </div>
-          </div>
-
-          <div className="flex items-center gap-3">
-             {/* Stats Pill */}
-            <div className="flex items-center gap-4 bg-slate-100/50 p-2 rounded-xl border border-slate-200">
-                <div className="px-2 flex flex-col items-center">
-                    <span className="text-[10px] uppercase text-slate-400 font-bold">Filled</span>
-                    <span className="font-mono font-bold text-sm">{filledCount}</span>
-                </div>
-                {gradingMode && (
-                   <>
-                    <div className="w-px h-6 bg-slate-200"></div>
-                    <div className="flex flex-col items-center text-green-600">
-                        <span className="text-[10px] uppercase font-bold">✓</span>
-                        <span className="font-mono font-bold text-sm">{correctCount}</span>
-                    </div>
-                    <div className="flex flex-col items-center text-red-500">
-                        <span className="text-[10px] uppercase font-bold">✗</span>
-                        <span className="font-mono font-bold text-sm">{wrongCount}</span>
-                    </div>
-                   </>
-                )}
+                <button id="setup-theme-toggle" class="p-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                    <i data-lucide="sun" class="w-5 h-5 hidden dark:block"></i>
+                    <i data-lucide="moon" class="w-5 h-5 block dark:hidden"></i>
+                </button>
             </div>
-
-            {/* Actions */}
-            <button 
-              onClick={() => setGradingMode(!gradingMode)}
-              className={`p-2 rounded-lg transition-colors border ${
-                gradingMode 
-                ? 'bg-indigo-50 border-indigo-200 text-indigo-700' 
-                : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-              }`}
-              title={gradingMode ? "Return to Edit" : "Start Grading"}
-            >
-              <Calculator size={20} />
-            </button>
-
-            <button 
-              onClick={copyToClipboard} 
-              className="p-2 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors border border-transparent hover:border-blue-100"
-              title="Copy Answers"
-            >
-              <Copy size={20} />
-            </button>
-
-             <div className="w-px h-6 bg-slate-300 mx-1"></div>
-
-             <button 
-              onClick={startNewSheet}
-              className="flex items-center gap-2 px-3 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-sm font-bold transition-colors shadow-sm"
-            >
-               <FilePlus size={16} />
-               <span className="hidden sm:inline">New Sheet</span>
-            </button>
-          </div>
+            
+            <form id="setup-form" class="space-y-6">
+                <div>
+                    <label class="block text-sm font-semibold text-slate-600 dark:text-slate-400 mb-2">Sheet Name</label>
+                    <input type="text" id="sheet-name-input" placeholder="e.g., Physics Test" class="w-full p-3 border border-slate-300 dark:border-slate-700 bg-transparent dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-colors">
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-semibold text-slate-600 dark:text-slate-400 mb-2">Start Q#</label>
+                        <input type="number" id="start-q-input" value="1" required min="1" class="w-full p-3 border border-slate-300 dark:border-slate-700 bg-transparent dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 outline-none font-mono transition-colors">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-slate-600 dark:text-slate-400 mb-2">End Q#</label>
+                        <input type="number" id="end-q-input" value="100" required min="1" class="w-full p-3 border border-slate-300 dark:border-slate-700 bg-transparent dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 outline-none font-mono transition-colors">
+                    </div>
+                </div>
+                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-200 dark:shadow-none">
+                    Start Session <i data-lucide="chevron-right" class="w-5 h-5"></i>
+                </button>
+            </form>
         </div>
-      </header>
+    </div>
 
-      {/* Grid */}
-      <main className="flex-1 max-w-5xl mx-auto w-full p-4 pb-20">
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-          {data.map((item, index) => {
-            const isActive = activeIndex === index;
-            const isCorrect = item.status === 'correct';
-            const isWrong = item.status === 'wrong';
+    <!-- APP SCREEN -->
+    <div id="app-screen" class="hidden flex-col min-h-screen">
+        <!-- Header -->
+        <header class="sticky top-0 z-20 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-4 py-3 shadow-sm">
+            <div class="max-w-5xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div class="flex flex-col">
+                    <h2 id="header-title" class="font-bold text-slate-800 dark:text-white text-lg leading-tight"></h2>
+                    <div class="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                        <span id="header-range"></span>
+                        <span>•</span>
+                        <span id="mode-indicator" class="font-bold">Editing Mode</span>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-3">
+                    <!-- Stats -->
+                    <div class="flex items-center gap-4 bg-slate-100/50 dark:bg-slate-800/50 p-2 rounded-xl border border-slate-200 dark:border-slate-700">
+                        <div class="px-2 flex flex-col items-center">
+                            <span class="text-[10px] uppercase text-slate-400 dark:text-slate-500 font-bold text-center">Filled</span>
+                            <span id="stat-filled" class="font-mono font-bold text-sm">0</span>
+                        </div>
+                        <div id="grading-stats" class="hidden flex items-center gap-4">
+                            <div class="w-px h-6 bg-slate-200 dark:bg-slate-700"></div>
+                            <div class="flex flex-col items-center text-green-600 dark:text-green-400">
+                                <span class="text-[10px] uppercase font-bold">✓</span>
+                                <span id="stat-correct" class="font-mono font-bold text-sm">0</span>
+                            </div>
+                            <div class="flex flex-col items-center text-red-500 dark:text-red-400">
+                                <span class="text-[10px] uppercase font-bold">✗</span>
+                                <span id="stat-wrong" class="font-mono font-bold text-sm">0</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Theme Toggle -->
+                    <button id="app-theme-toggle" class="p-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                         <i data-lucide="sun" class="w-4 h-4 hidden dark:block"></i>
+                         <i data-lucide="moon" class="w-4 h-4 block dark:hidden"></i>
+                    </button>
+
+                    <!-- Grade Toggle -->
+                    <button id="grade-toggle" class="flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50">
+                        <i data-lucide="calculator" class="w-4 h-4"></i>
+                        <span id="grade-btn-text" class="hidden sm:inline font-bold text-sm">Grade</span>
+                    </button>
+
+                    <!-- Copy -->
+                    <button id="copy-btn" class="p-2 text-slate-500 hover:text-blue-600 dark:text-slate-400 dark:hover:text-blue-400 rounded-lg transition-colors border border-transparent hover:border-blue-100 dark:hover:border-blue-900" title="Copy Answers">
+                        <i data-lucide="copy" class="w-5 h-5"></i>
+                    </button>
+
+                    <!-- New Sheet -->
+                    <button id="new-sheet-btn" class="p-2 bg-slate-800 dark:bg-slate-700 hover:bg-slate-900 dark:hover:bg-slate-600 text-white rounded-lg transition-colors shadow-sm" title="New Sheet">
+                        <i data-lucide="file-plus" class="w-5 h-5"></i>
+                    </button>
+                </div>
+            </div>
             
-            let borderClass = isActive ? 'border-blue-500 ring-2 ring-blue-100 z-10' : 'border-slate-200';
-            let bgClass = 'bg-white';
+            <!-- Grading Helper -->
+            <div id="grading-helper" class="hidden max-w-5xl mx-auto mt-2 text-xs text-center sm:text-left text-indigo-600 dark:text-indigo-400 bg-indigo-50/50 dark:bg-indigo-900/20 p-1.5 rounded border border-indigo-100 dark:border-indigo-900/40 flex items-center justify-center sm:justify-start gap-3">
+                <i data-lucide="keyboard" class="w-3 h-3"></i>
+                <span><strong>Hotkeys:</strong> <kbd class="font-mono bg-white dark:bg-slate-800 border dark:border-slate-700 px-1 rounded">C</kbd> Correct, <kbd class="font-mono bg-white dark:bg-slate-800 border dark:border-slate-700 px-1 rounded">X</kbd> Wrong, <kbd class="font-mono bg-white dark:bg-slate-800 border dark:border-slate-700 px-1 rounded">Enter</kbd> Next.</span>
+            </div>
+        </header>
+
+        <!-- Grid Container -->
+        <main class="flex-1 max-w-5xl mx-auto w-full p-4 pb-20">
+            <div id="grid-container" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                <!-- Grid items generated by JS -->
+            </div>
+        </main>
+    </div>
+
+    <!-- Confirm Modal -->
+    <div id="confirm-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+        <div class="bg-white dark:bg-slate-900 rounded-xl shadow-2xl p-6 w-full max-w-sm border border-slate-200 dark:border-slate-800 transform scale-100 transition-all">
+            <div class="flex flex-col items-center text-center gap-3">
+                <div class="p-3 bg-amber-100 dark:bg-amber-900/30 rounded-full text-amber-600 dark:text-amber-400">
+                    <i data-lucide="alert-triangle" class="w-8 h-8"></i>
+                </div>
+                <h3 class="text-xl font-bold text-slate-900 dark:text-white">Start New Sheet?</h3>
+                <p class="text-slate-500 dark:text-slate-400">This will clear all current answers and grading marks. This action cannot be undone.</p>
+                <div class="flex gap-3 w-full mt-4">
+                    <button id="cancel-confirm" class="flex-1 py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">Cancel</button>
+                    <button id="ok-confirm" class="flex-1 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold transition-colors shadow-lg shadow-blue-200 dark:shadow-none">Start New</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div id="toast" class="hidden fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-800 dark:bg-white text-white dark:text-slate-900 px-4 py-2 rounded-full text-sm font-medium shadow-lg z-50 animate-fade-in-up">
+        Notification
+    </div>
+
+    <script>
+        // --- State Management ---
+        const state = {
+            isSetup: true,
+            sheetName: '',
+            startQ: 1,
+            endQ: 100,
+            data: [], // Array of objects { id, text, status }
+            gradingMode: false,
+            activeIndex: 0,
+            darkMode: false
+        };
+
+        // --- DOM Elements ---
+        const els = {
+            setupScreen: document.getElementById('setup-screen'),
+            appScreen: document.getElementById('app-screen'),
+            setupForm: document.getElementById('setup-form'),
+            gridContainer: document.getElementById('grid-container'),
+            sheetNameInput: document.getElementById('sheet-name-input'),
+            startQInput: document.getElementById('start-q-input'),
+            endQInput: document.getElementById('end-q-input'),
+            headerTitle: document.getElementById('header-title'),
+            headerRange: document.getElementById('header-range'),
+            modeIndicator: document.getElementById('mode-indicator'),
+            gradeToggle: document.getElementById('grade-toggle'),
+            gradeBtnText: document.getElementById('grade-btn-text'),
+            gradingStats: document.getElementById('grading-stats'),
+            gradingHelper: document.getElementById('grading-helper'),
+            statFilled: document.getElementById('stat-filled'),
+            statCorrect: document.getElementById('stat-correct'),
+            statWrong: document.getElementById('stat-wrong'),
+            toast: document.getElementById('toast'),
+            confirmModal: document.getElementById('confirm-modal'),
+            newSheetBtn: document.getElementById('new-sheet-btn'),
+            cancelConfirm: document.getElementById('cancel-confirm'),
+            okConfirm: document.getElementById('ok-confirm'),
+            copyBtn: document.getElementById('copy-btn'),
+            setupThemeToggle: document.getElementById('setup-theme-toggle'),
+            appThemeToggle: document.getElementById('app-theme-toggle')
+        };
+
+        // --- Initialization ---
+        function init() {
+            // Theme Check
+            if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                state.darkMode = true;
+                updateTheme();
+            }
             
-            if (isCorrect) {
-                borderClass = 'border-green-200 ring-1 ring-green-50';
-                bgClass = 'bg-green-50/50';
-            } else if (isWrong) {
-                borderClass = 'border-red-200 ring-1 ring-red-50';
-                bgClass = 'bg-red-50/50';
+            // Render Icons
+            lucide.createIcons();
+
+            // Event Listeners
+            els.setupForm.addEventListener('submit', handleStart);
+            els.setupThemeToggle.addEventListener('click', toggleTheme);
+            els.appThemeToggle.addEventListener('click', toggleTheme);
+            els.gradeToggle.addEventListener('click', toggleGradingMode);
+            els.newSheetBtn.addEventListener('click', () => els.confirmModal.classList.remove('hidden'));
+            els.cancelConfirm.addEventListener('click', () => els.confirmModal.classList.add('hidden'));
+            els.okConfirm.addEventListener('click', confirmNewSheet);
+            els.copyBtn.addEventListener('click', copyToClipboard);
+
+            // Global Keydown for Grading Shortcuts
+            document.addEventListener('keydown', (e) => {
+                if (!state.isSetup && state.gradingMode) {
+                    if (e.target.tagName !== 'INPUT' || e.target.readOnly) {
+                       // Handle grading keys if focus is somehow lost or on readonly input
+                       // Logic handled inside input event listener usually, but here for safety
+                    }
+                }
+            });
+        }
+
+        // --- Core Logic ---
+
+        function handleStart(e) {
+            e.preventDefault();
+            const start = parseInt(els.startQInput.value) || 1;
+            const end = parseInt(els.endQInput.value) || 100;
+            const name = els.sheetNameInput.value;
+
+            if (end < start) {
+                showToast("End number must be greater than start number");
+                return;
             }
 
-            return (
-              <div 
-                key={item.id}
-                className={`relative flex items-stretch rounded-lg border shadow-sm transition-all duration-200 ${borderClass} ${bgClass}`}
-                onClick={() => !gradingMode && inputRefs.current[index]?.focus()}
-              >
-                <div className={`
-                  flex-shrink-0 w-12 flex items-center justify-center font-bold text-sm border-r
-                  ${isCorrect ? 'bg-green-100 text-green-700 border-green-200' : 
-                    isWrong ? 'bg-red-100 text-red-700 border-red-200' :
-                    isActive ? 'bg-blue-50 text-blue-700 border-blue-100' : 
-                    'bg-slate-50 text-slate-500 border-slate-100'}
-                `}>
-                  {item.id}
-                </div>
+            state.startQ = start;
+            state.endQ = end;
+            state.sheetName = name;
+            state.isSetup = false;
+            
+            // Generate Data
+            const count = end - start + 1;
+            state.data = Array.from({ length: count }, (_, i) => ({
+                id: start + i,
+                text: '',
+                status: 'neutral'
+            }));
 
-                <input
-                  ref={el => inputRefs.current[index] = el}
-                  type="text"
-                  value={item.text}
-                  onChange={(e) => handleInputChange(index, e.target.value)}
-                  onKeyDown={(e) => handleKeyDown(e, index)}
-                  onFocus={() => setActiveIndex(index)}
-                  disabled={gradingMode}
-                  className={`
-                    flex-1 px-3 py-3 bg-transparent border-none outline-none font-medium 
-                    ${isCorrect ? 'text-green-800' : isWrong ? 'text-red-800' : 'text-slate-800'}
-                    disabled:cursor-default
-                  `}
-                  placeholder="-"
-                  autoComplete="off"
-                />
+            renderApp();
+        }
 
-                {gradingMode && (
-                    <div className="flex items-center px-1 border-l border-slate-100 bg-white/50 rounded-r-lg">
-                        <button 
-                            onClick={(e) => { e.stopPropagation(); toggleStatus(index, 'correct'); }}
-                            className={`p-1.5 rounded hover:bg-green-100 transition-colors ${isCorrect ? 'text-green-600 bg-green-50' : 'text-slate-300 hover:text-green-500'}`}
-                        >
-                            <Check size={18} strokeWidth={3} />
-                        </button>
-                        <button 
-                            onClick={(e) => { e.stopPropagation(); toggleStatus(index, 'wrong'); }}
-                            className={`p-1.5 rounded hover:bg-red-100 transition-colors ${isWrong ? 'text-red-500 bg-red-50' : 'text-slate-300 hover:text-red-500'}`}
-                        >
-                            <X size={18} strokeWidth={3} />
-                        </button>
-                    </div>
-                )}
+        function renderApp() {
+            // Switch Screens
+            els.setupScreen.classList.add('hidden');
+            els.appScreen.classList.remove('hidden');
+            els.appScreen.classList.add('flex');
+
+            // Update Header
+            els.headerTitle.textContent = state.sheetName || `Questions ${state.startQ} - ${state.endQ}`;
+            els.headerRange.textContent = `${state.startQ}-${state.endQ}`;
+            
+            // Build Grid
+            els.gridContainer.innerHTML = '';
+            state.data.forEach((item, index) => {
+                const div = document.createElement('div');
+                div.className = `relative flex items-stretch rounded-lg border shadow-sm transition-all duration-200 border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900`;
+                div.id = `item-${index}`;
+                div.onclick = () => focusInput(index);
+
+                // Number Label
+                const label = document.createElement('div');
+                label.className = `flex-shrink-0 w-12 flex items-center justify-center font-bold text-sm border-r bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-100 dark:border-slate-700`;
+                label.textContent = item.id;
+                label.id = `label-${index}`;
+
+                // Input
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.className = `flex-1 px-3 py-3 bg-transparent border-none outline-none font-medium text-slate-800 dark:text-slate-100`;
+                input.placeholder = "-";
+                input.autocomplete = "off";
+                input.id = `input-${index}`;
                 
-                {!gradingMode && item.text && !isActive && (
-                   <div className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none">
-                     <div className="w-1.5 h-1.5 rounded-full bg-slate-300"></div>
-                   </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </main>
-    </div>
-  );
-}
+                // Input Events
+                input.addEventListener('input', (e) => {
+                    if(!state.gradingMode) {
+                        state.data[index].text = e.target.value;
+                        updateStats();
+                    }
+                });
+                input.addEventListener('focus', () => setActiveIndex(index));
+                input.addEventListener('keydown', (e) => handleKey(e, index));
+
+                // Status Icon Container
+                const iconContainer = document.createElement('div');
+                iconContainer.className = "flex items-center px-3 border-l border-slate-100 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 rounded-r-lg hidden";
+                iconContainer.id = `icon-${index}`;
+
+                div.appendChild(label);
+                div.appendChild(input);
+                div.appendChild(iconContainer);
+                els.gridContainer.appendChild(div);
+            });
+
+            // Focus first
+            setTimeout(() => focusInput(0), 100);
+            updateStats();
+            lucide.createIcons();
+        }
+
+        function handleKey(e, index) {
+            // Grading Shortcuts
+            if (state.gradingMode) {
+                if (e.key.toLowerCase() === 'c') {
+                    e.preventDefault();
+                    setQuestionStatus(index, 'correct');
+                    return;
+                }
+                if (e.key.toLowerCase() === 'x') {
+                    e.preventDefault();
+                    setQuestionStatus(index, 'wrong');
+                    return;
+                }
+            }
+
+            // Navigation
+            if (e.key === 'Enter' || e.key === 'ArrowDown') {
+                e.preventDefault();
+                const next = index + 1;
+                if (next < state.data.length) focusInput(next);
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                const prev = index - 1;
+                if (prev >= 0) focusInput(prev);
+            }
+        }
+
+        function setQuestionStatus(index, status) {
+            state.data[index].status = status;
+            renderItem(index);
+            updateStats();
+            // Focus remains on current input
+        }
+
+        function renderItem(index) {
+            const item = state.data[index];
+            const div = document.getElementById(`item-${index}`);
+            const label = document.getElementById(`label-${index}`);
+            const input = document.getElementById(`input-${index}`);
+            const iconContainer = document.getElementById(`icon-${index}`);
+            const isActive = state.activeIndex === index;
+
+            // Reset base classes
+            div.className = `relative flex items-stretch rounded-lg border shadow-sm transition-all duration-200`;
+            label.className = `flex-shrink-0 w-12 flex items-center justify-center font-bold text-sm border-r`;
+            input.classList.remove('text-green-800', 'dark:text-green-200', 'text-red-800', 'dark:text-red-200', 'text-slate-800', 'dark:text-slate-100');
+            
+            // Logic for styling
+            let borderClass, bgClass, labelClass, textClass;
+
+            if (item.status === 'correct') {
+                borderClass = isActive 
+                    ? 'border-green-500 ring-2 ring-green-200 dark:ring-green-900/50 z-10' 
+                    : 'border-green-200 dark:border-green-900/50';
+                bgClass = 'bg-green-50/50 dark:bg-green-950/20';
+                labelClass = 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 border-green-200 dark:border-green-800';
+                textClass = 'text-green-800 dark:text-green-200';
+                // Icon
+                iconContainer.innerHTML = `<i data-lucide="check" class="w-4 h-4 text-green-600 dark:text-green-400 stroke-[3]"></i>`;
+            } else if (item.status === 'wrong') {
+                borderClass = isActive 
+                    ? 'border-red-500 ring-2 ring-red-200 dark:ring-red-900/50 z-10' 
+                    : 'border-red-200 dark:border-red-900/50';
+                bgClass = 'bg-red-50/50 dark:bg-red-950/20';
+                labelClass = 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800';
+                textClass = 'text-red-800 dark:text-red-200';
+                // Icon
+                iconContainer.innerHTML = `<i data-lucide="x" class="w-4 h-4 text-red-500 dark:text-red-400 stroke-[3]"></i>`;
+            } else {
+                borderClass = isActive 
+                    ? 'border-blue-500 ring-2 ring-blue-100 dark:ring-blue-900/50 z-10' 
+                    : 'border-slate-200 dark:border-slate-800';
+                bgClass = 'bg-white dark:bg-slate-900';
+                labelClass = isActive 
+                    ? 'bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 border-blue-100 dark:border-blue-800' 
+                    : 'bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-100 dark:border-slate-700';
+                textClass = 'text-slate-800 dark:text-slate-100';
+            }
+
+            div.className += ` ${borderClass} ${bgClass}`;
+            label.className += ` ${labelClass}`;
+            input.className += ` ${textClass}`;
+
+            // Show/Hide Icons logic
+            if (state.gradingMode && item.status !== 'neutral') {
+                iconContainer.classList.remove('hidden');
+                lucide.createIcons({ root: iconContainer });
+            } else {
+                iconContainer.classList.add('hidden');
+            }
+            
+            // Readonly state logic
+            if (state.gradingMode) {
+                input.readOnly = true;
+                input.classList.add('cursor-default', 'caret-transparent');
+            } else {
+                input.readOnly = false;
+                input.classList.remove('cursor-default', 'caret-transparent');
+            }
+        }
+
+        function setActiveIndex(index) {
+            const prevIndex = state.activeIndex;
+            state.activeIndex = index;
+            renderItem(prevIndex);
+            renderItem(index);
+        }
+
+        function focusInput(index) {
+            const el = document.getElementById(`input-${index}`);
+            if (el) {
+                el.focus();
+                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }
+
+        // --- Features ---
+
+        function toggleGradingMode() {
+            state.gradingMode = !state.gradingMode;
+            
+            // UI Updates
+            if (state.gradingMode) {
+                els.modeIndicator.textContent = 'Grading Mode';
+                els.modeIndicator.className = 'font-bold text-indigo-600 dark:text-indigo-400';
+                els.gradeToggle.className = 'flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors bg-indigo-50 dark:bg-indigo-900/30 border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300';
+                els.gradeBtnText.textContent = 'Done';
+                els.gradingStats.classList.remove('hidden');
+                els.gradingHelper.classList.remove('hidden');
+            } else {
+                els.modeIndicator.textContent = 'Editing Mode';
+                els.modeIndicator.className = 'font-bold';
+                els.gradeToggle.className = 'flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50';
+                els.gradeBtnText.textContent = 'Grade';
+                els.gradingStats.classList.add('hidden');
+                els.gradingHelper.classList.add('hidden');
+            }
+            
+            // Re-render all items to update readonly state & icons
+            state.data.forEach((_, i) => renderItem(i));
+            // Refocus current
+            focusInput(state.activeIndex);
+        }
+
+        function updateStats() {
+            const filled = state.data.filter(d => d.text.trim() !== '').length;
+            const correct = state.data.filter(d => d.status === 'correct').length;
+            const wrong = state.data.filter(d => d.status === 'wrong').length;
+            
+            els.statFilled.textContent = filled;
+            els.statCorrect.textContent = correct;
+            els.statWrong.textContent = wrong;
+        }
+
+        function toggleTheme() {
+            state.darkMode = !state.darkMode;
+            updateTheme();
+        }
+
+        function updateTheme() {
+            const html = document.documentElement;
+            if (state.darkMode) {
+                html.classList.add('dark');
+            } else {
+                html.classList.remove('dark');
+            }
+        }
+
+        function confirmNewSheet() {
+            els.confirmModal.classList.add('hidden');
+            state.isSetup = true;
+            state.data = [];
+            state.sheetName = '';
+            state.gradingMode = false;
+            
+            els.appScreen.classList.remove('flex');
+            els.appScreen.classList.add('hidden');
+            els.setupScreen.classList.remove('hidden');
+            
+            // Reset form
+            els.sheetNameInput.value = '';
+            // keep ranges as is
+            
+            // Reset UI bits
+            toggleGradingMode(); // reset logic if needed, actually just forcing false above covers logic, but UI needs reset
+            if(state.gradingMode) toggleGradingMode(); // ensure off
+        }
+
+        function copyToClipboard() {
+            const header = state.sheetName ? `--- ${state.sheetName} ---\n` : '';
+            const body = state.data
+                .map(item => {
+                    let mark = item.status === 'correct' ? ' [✓]' : item.status === 'wrong' ? ' [✗]' : '';
+                    return item.text ? `${item.id}. ${item.text}${mark}` : null;
+                })
+                .filter(Boolean).join('\n');
+            
+            if (body) {
+                const textToCopy = header + body;
+                navigator.clipboard.writeText(textToCopy).then(() => showToast('Copied to clipboard!'));
+            } else {
+                showToast('Nothing to copy');
+            }
+        }
+
+        function showToast(msg) {
+            els.toast.textContent = msg;
+            els.toast.classList.remove('hidden');
+            setTimeout(() => {
+                els.toast.classList.add('hidden');
+            }, 2500);
+        }
+
+        // Run
+        init();
+
+    </script>
+</body>
+</html>
