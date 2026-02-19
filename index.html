@@ -1,0 +1,341 @@
+import React, { useState, useRef, useEffect } from 'react';
+import { 
+  Trash2, Copy, CheckCircle, XCircle, 
+  ArrowDown, ArrowUp, Zap, Settings, 
+  ChevronRight, Calculator, Check, X,
+  FilePlus, RefreshCw
+} from 'lucide-react';
+
+export default function App() {
+  // --- State ---
+  const [isSetup, setIsSetup] = useState(true);
+  const [sheetName, setSheetName] = useState('');
+  const [range, setRange] = useState({ start: 1, end: 100 });
+  const [data, setData] = useState([]); 
+  const [gradingMode, setGradingMode] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(0);
+  
+  const inputRefs = useRef([]);
+
+  // --- Setup Handlers ---
+  const handleStart = (e) => {
+    e.preventDefault();
+    const start = parseInt(range.start) || 1;
+    const end = parseInt(range.end) || 100;
+    
+    if (end < start) {
+      alert("End number must be greater than start number");
+      return;
+    }
+
+    const count = end - start + 1;
+    if (count > 500) {
+      if(!window.confirm(`This will generate ${count} inputs. Continue?`)) return;
+    }
+
+    const newData = Array.from({ length: count }, (_, i) => ({
+      id: start + i,
+      text: '',
+      status: 'neutral'
+    }));
+
+    setData(newData);
+    setIsSetup(false);
+    
+    // Reset refs & focus
+    inputRefs.current = inputRefs.current.slice(0, count);
+    setTimeout(() => {
+        if(inputRefs.current[0]) inputRefs.current[0].focus();
+    }, 100);
+  };
+
+  // --- Input Handlers ---
+  const handleInputChange = (index, value) => {
+    const newData = [...data];
+    newData[index].text = value;
+    setData(newData);
+  };
+
+  const handleKeyDown = (e, index) => {
+    if (e.key === 'Enter' || e.key === 'ArrowDown') {
+      e.preventDefault();
+      const nextIndex = index + 1;
+      if (nextIndex < data.length) {
+        inputRefs.current[nextIndex]?.focus();
+        setActiveIndex(nextIndex);
+        inputRefs.current[nextIndex]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      const prevIndex = index - 1;
+      if (prevIndex >= 0) {
+        inputRefs.current[prevIndex]?.focus();
+        setActiveIndex(prevIndex);
+        inputRefs.current[prevIndex]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+  };
+
+  // --- Grading Handlers ---
+  const toggleStatus = (index, status) => {
+    const newData = [...data];
+    if (newData[index].status === status) {
+        newData[index].status = 'neutral';
+    } else {
+        newData[index].status = status;
+    }
+    setData(newData);
+  };
+
+  // --- Utility ---
+  const copyToClipboard = () => {
+    const header = sheetName ? `--- ${sheetName} ---\n` : '';
+    const body = data
+      .map(item => {
+        let mark = '';
+        if (item.status === 'correct') mark = ' [✓]';
+        if (item.status === 'wrong') mark = ' [✗]';
+        return item.text ? `${item.id}. ${item.text}${mark}` : null;
+      })
+      .filter(Boolean)
+      .join('\n');
+      
+    if (!body) return;
+    navigator.clipboard.writeText(header + body).then(() => alert('Copied to clipboard!'));
+  };
+
+  const startNewSheet = () => {
+    if (window.confirm("Finish this sheet and start a new one? Current answers will be cleared.")) {
+      setIsSetup(true);
+      setGradingMode(false);
+      setData([]);
+      setSheetName(''); // Clear name for new sheet
+      // Keep range as is for convenience
+    }
+  };
+
+  // --- Stats ---
+  const filledCount = data.filter(d => d.text.trim() !== '').length;
+  const correctCount = data.filter(d => d.status === 'correct').length;
+  const wrongCount = data.filter(d => d.status === 'wrong').length;
+  // const score = correctCount > 0 || wrongCount > 0 ? `${correctCount} / ${correctCount + wrongCount}` : '-';
+
+  // --- Render Setup Screen ---
+  if (isSetup) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4 font-sans text-slate-900">
+        <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md border border-slate-100">
+          <div className="flex items-center gap-3 mb-6 text-blue-600">
+            <Zap size={32} />
+            <h1 className="text-2xl font-bold text-slate-900">SpeedSheet</h1>
+          </div>
+          
+          <form onSubmit={handleStart} className="space-y-6">
+            <div>
+              <label className="block text-sm font-semibold text-slate-600 mb-2">Sheet Name (Optional)</label>
+              <input 
+                type="text" 
+                placeholder="e.g., Biology Chapter 3"
+                className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                value={sheetName}
+                onChange={(e) => setSheetName(e.target.value)}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-semibold text-slate-600 mb-2">Start Q#</label>
+                <input 
+                  type="number" 
+                  required
+                  min="1"
+                  className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-lg font-mono"
+                  value={range.start}
+                  onChange={(e) => setRange({...range, start: e.target.value})}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-slate-600 mb-2">End Q#</label>
+                <input 
+                  type="number" 
+                  required
+                  min="1"
+                  className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-lg font-mono"
+                  value={range.end}
+                  onChange={(e) => setRange({...range, end: e.target.value})}
+                />
+              </div>
+            </div>
+
+            <button 
+              type="submit"
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-200"
+            >
+              Start Session <ChevronRight size={20} />
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  // --- Render Main App ---
+  return (
+    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans flex flex-col">
+      {/* Header */}
+      <header className="sticky top-0 z-20 bg-white/80 backdrop-blur-md border-b border-slate-200 px-4 py-3 shadow-sm">
+        <div className="max-w-5xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          
+          <div className="flex items-center gap-4">
+             <div className="flex flex-col">
+                <h2 className="font-bold text-slate-800 text-lg leading-tight">
+                  {sheetName || `Questions ${range.start} - ${range.end}`}
+                </h2>
+                <div className="flex items-center gap-2 text-xs text-slate-500">
+                   <span>{range.start}-{range.end}</span>
+                   <span>•</span>
+                   <span className={gradingMode ? "text-indigo-600 font-bold" : ""}>
+                     {gradingMode ? 'Grading Mode' : 'Editing Mode'}
+                   </span>
+                </div>
+             </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+             {/* Stats Pill */}
+            <div className="flex items-center gap-4 bg-slate-100/50 p-2 rounded-xl border border-slate-200">
+                <div className="px-2 flex flex-col items-center">
+                    <span className="text-[10px] uppercase text-slate-400 font-bold">Filled</span>
+                    <span className="font-mono font-bold text-sm">{filledCount}</span>
+                </div>
+                {gradingMode && (
+                   <>
+                    <div className="w-px h-6 bg-slate-200"></div>
+                    <div className="flex flex-col items-center text-green-600">
+                        <span className="text-[10px] uppercase font-bold">✓</span>
+                        <span className="font-mono font-bold text-sm">{correctCount}</span>
+                    </div>
+                    <div className="flex flex-col items-center text-red-500">
+                        <span className="text-[10px] uppercase font-bold">✗</span>
+                        <span className="font-mono font-bold text-sm">{wrongCount}</span>
+                    </div>
+                   </>
+                )}
+            </div>
+
+            {/* Actions */}
+            <button 
+              onClick={() => setGradingMode(!gradingMode)}
+              className={`p-2 rounded-lg transition-colors border ${
+                gradingMode 
+                ? 'bg-indigo-50 border-indigo-200 text-indigo-700' 
+                : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+              }`}
+              title={gradingMode ? "Return to Edit" : "Start Grading"}
+            >
+              <Calculator size={20} />
+            </button>
+
+            <button 
+              onClick={copyToClipboard} 
+              className="p-2 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors border border-transparent hover:border-blue-100"
+              title="Copy Answers"
+            >
+              <Copy size={20} />
+            </button>
+
+             <div className="w-px h-6 bg-slate-300 mx-1"></div>
+
+             <button 
+              onClick={startNewSheet}
+              className="flex items-center gap-2 px-3 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-sm font-bold transition-colors shadow-sm"
+            >
+               <FilePlus size={16} />
+               <span className="hidden sm:inline">New Sheet</span>
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* Grid */}
+      <main className="flex-1 max-w-5xl mx-auto w-full p-4 pb-20">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+          {data.map((item, index) => {
+            const isActive = activeIndex === index;
+            const isCorrect = item.status === 'correct';
+            const isWrong = item.status === 'wrong';
+            
+            let borderClass = isActive ? 'border-blue-500 ring-2 ring-blue-100 z-10' : 'border-slate-200';
+            let bgClass = 'bg-white';
+            
+            if (isCorrect) {
+                borderClass = 'border-green-200 ring-1 ring-green-50';
+                bgClass = 'bg-green-50/50';
+            } else if (isWrong) {
+                borderClass = 'border-red-200 ring-1 ring-red-50';
+                bgClass = 'bg-red-50/50';
+            }
+
+            return (
+              <div 
+                key={item.id}
+                className={`relative flex items-stretch rounded-lg border shadow-sm transition-all duration-200 ${borderClass} ${bgClass}`}
+                onClick={() => !gradingMode && inputRefs.current[index]?.focus()}
+              >
+                <div className={`
+                  flex-shrink-0 w-12 flex items-center justify-center font-bold text-sm border-r
+                  ${isCorrect ? 'bg-green-100 text-green-700 border-green-200' : 
+                    isWrong ? 'bg-red-100 text-red-700 border-red-200' :
+                    isActive ? 'bg-blue-50 text-blue-700 border-blue-100' : 
+                    'bg-slate-50 text-slate-500 border-slate-100'}
+                `}>
+                  {item.id}
+                </div>
+
+                <input
+                  ref={el => inputRefs.current[index] = el}
+                  type="text"
+                  value={item.text}
+                  onChange={(e) => handleInputChange(index, e.target.value)}
+                  onKeyDown={(e) => handleKeyDown(e, index)}
+                  onFocus={() => setActiveIndex(index)}
+                  disabled={gradingMode}
+                  className={`
+                    flex-1 px-3 py-3 bg-transparent border-none outline-none font-medium 
+                    ${isCorrect ? 'text-green-800' : isWrong ? 'text-red-800' : 'text-slate-800'}
+                    disabled:cursor-default
+                  `}
+                  placeholder="-"
+                  autoComplete="off"
+                />
+
+                {gradingMode && (
+                    <div className="flex items-center px-1 border-l border-slate-100 bg-white/50 rounded-r-lg">
+                        <button 
+                            onClick={(e) => { e.stopPropagation(); toggleStatus(index, 'correct'); }}
+                            className={`p-1.5 rounded hover:bg-green-100 transition-colors ${isCorrect ? 'text-green-600 bg-green-50' : 'text-slate-300 hover:text-green-500'}`}
+                        >
+                            <Check size={18} strokeWidth={3} />
+                        </button>
+                        <button 
+                            onClick={(e) => { e.stopPropagation(); toggleStatus(index, 'wrong'); }}
+                            className={`p-1.5 rounded hover:bg-red-100 transition-colors ${isWrong ? 'text-red-500 bg-red-50' : 'text-slate-300 hover:text-red-500'}`}
+                        >
+                            <X size={18} strokeWidth={3} />
+                        </button>
+                    </div>
+                )}
+                
+                {!gradingMode && item.text && !isActive && (
+                   <div className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none">
+                     <div className="w-1.5 h-1.5 rounded-full bg-slate-300"></div>
+                   </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </main>
+    </div>
+  );
+}
